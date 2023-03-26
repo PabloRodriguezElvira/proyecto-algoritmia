@@ -17,7 +17,7 @@ using QueueInt = queue<int>;
 Grafo leerGrafo(double *prob, QueueInt &Q, VB &activados)
 {
     // Fichero que contiene el grafo:
-    string nombreFichero = "grafo01IC.txt";
+    string nombreFichero = "grafo03IC.txt";
     ifstream file(nombreFichero.c_str());
     string line;
 
@@ -97,23 +97,46 @@ VI difusionIC(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t)
     return C;
 }
 
-void general_sol(Grafo &G, VB &activados, VI &sol_actual)
-{
-    int num_nodes = G.size();
-    for (int i = 0; i < num_nodes; i++)
-    {
-        if (rand() % 2 == 1)
-        {
-            activados[i] = true;
-            sol_actual.push_back(i);
-        }
-    }
-}
-
+// comprobar que todos los nodos estan activados
 bool check_solution(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t)
 {
-    VI C = difusionIC(G, activados, ratio, Q, t);
-    return (activados.size() == G.size());
+    VB activados_aux = activados;
+    VI C = difusionIC(G, activados_aux, ratio, Q, t);
+    int nodes_activados = 0;
+    for (auto i : activados_aux)
+    {
+        if (i)
+            ++nodes_activados;
+    }
+    return (nodes_activados == G.size());
+}
+
+void general_sol(Grafo &G, VB &activados, VI &sol_actual, double ratio)
+{
+    bool ok = false;
+    VB activados_aux;
+    VI sol_actual_aux;
+    while (not ok) // generar solucin randoment que sea valido
+    {
+        activados_aux = activados;
+        sol_actual_aux = sol_actual;
+        int num_nodes = G.size();
+        for (int i = 0; i < num_nodes; i++)
+        {
+            if (rand() % 2 == 1)
+            {
+                activados_aux[i] = true;
+                sol_actual_aux.push_back(i);
+            }
+        }
+        int t = 0;
+        QueueInt punt_ini;
+        punt_ini.push(sol_actual_aux[0]);
+        if (check_solution(G, activados_aux, ratio, punt_ini, &t))
+            ok = true;
+    }
+    activados = activados_aux;
+    sol_actual = sol_actual_aux;
 }
 
 int heuristic_value(VI &sol_actual)
@@ -127,11 +150,14 @@ VI hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q)
     int num_nodes = G.size();
     VI sol_actual;
     VI best_sol;
-    general_sol(G, activados, sol_actual);
+    VB best_activados;
+    VB activados_actual = activados;
+    general_sol(G, activados_actual, sol_actual, ratio);
     int best_score = heuristic_value(sol_actual);
     best_sol = sol_actual;
+    best_activados = activados_actual;
 
-    cout << "Solution1: { ";
+    cout << "Solution_ini: { ";
     for (int i : sol_actual)
     {
         cout << i << " ";
@@ -149,19 +175,20 @@ VI hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q)
         {
 
             VI neighbor_sol = sol_actual;
-            VB neighbor_activate = activados;
+            VB neighbor_activate = best_activados;
+            neighbor_activate[neighbor_sol[i]] = false;
             neighbor_sol.erase(neighbor_sol.begin() + i);
             int t = 0;
             QueueInt punt_ini;
             punt_ini.push(neighbor_sol[0]);
             if (check_solution(G, neighbor_activate, ratio, punt_ini, &t))
             {
-                cout << "check " << endl;
                 int neighbor_score = heuristic_value(neighbor_sol);
                 if (neighbor_score < best_score)
                 {
                     best_score = neighbor_score;
                     best_sol = neighbor_sol;
+                    best_activados = neighbor_activate;
                     improved = true;
                 }
             }
@@ -173,6 +200,7 @@ VI hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q)
         if (improved)
         {
             sol_actual = best_sol;
+            best_activados = best_activados;
         }
     }
     return best_sol;
