@@ -15,58 +15,50 @@ using VB = vector<bool>;
 using QueueInt = queue<int>;
 
 // Función que se encarga de leer el grafo, la probabilidad y el subconjunto S de un fichero.
-Grafo leerGrafo(double *prob, QueueInt &Q, VB &activados)
+Grafo leerGrafo(double *prob, const char *nombreFichero)
 {
     // Fichero que contiene el grafo:
-    string nombreFichero = "grafo03IC.txt";
-    ifstream file(nombreFichero.c_str());
+    ifstream file(nombreFichero);
     string line;
+    stringstream ss;
 
     // n -> vértices, m -> aristas
     int n, m;
+    string str;
     getline(file, line);
-    n = atoi(line.c_str());
-    getline(file, line);
-    m = atoi(line.c_str());
+    ss = stringstream(line);
+    ss >> str;
+    ss >> str; // Leer p y edge.
+    ss >> n;
+    ss >> m;
 
     Grafo G(n);
-    int u, v;
+
+    // Leer probabilidad.
+    getline(file, line);
+    ss = stringstream(line);
+    ss >> str;
+    ss >> (*prob);
+
     // Leer aristas:
+    int u, v;
     while (m--)
     {
         getline(file, line);
-        stringstream ss(line);
+        ss = stringstream(line);
+        ss >> str; // Leer p.
         ss >> u;
         ss >> v;
+        --u;
+        --v; // Los nodos van de 1 a n.
         G[u].push_back(v);
         G[v].push_back(u);
-    }
-
-    // Probabilidad:
-    getline(file, line);
-    *prob = atof(line.c_str());
-
-    // Subconjunto Q:
-    int w;
-    activados.resize(n);
-    getline(file, line);
-    w = atoi(line.c_str());
-    Q.push(w);
-    activados[w] = true;
-    while (w != -1)
-    {
-        getline(file, line);
-        w = atoi(line.c_str());
-        if (w != -1)
-        {
-            Q.push(w);
-            activados[w] = true;
-        }
     }
 
     file.close();
     return G;
 }
+
 // Función que visita cada nodo adyacente a u y los activa con una probabilidad prob (condición del modelo IC).
 // Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
 void influenciarNodos(const Grafo &G, VB &activados, VI &C, double prob, int u, int *t, QueueInt &Q)
@@ -122,7 +114,7 @@ void general_sol(Grafo &G, VB &activados, VI &sol_actual, double ratio)
         activados_aux = activados;
         sol_actual_aux = sol_actual;
         int num_nodes = G.size();
-        for (int i = 0; i < num_nodes; i++)
+        for (int i = 1; i < num_nodes + 1; i++)
         {
             if (rand() % 2 == 1)
             {
@@ -146,13 +138,13 @@ int heuristic_value(VI &sol_actual)
 }
 
 // Función para calcular el conjunto objetivo óptimo utilizando el algoritmo de Hill Climbing
-VI hillClimbing(Grafo &G, VB &activados, double ratio)
+VI hillClimbing(Grafo &G, double ratio)
 {
     int num_nodes = G.size();
     VI sol_actual;
     VI best_sol;
     VB best_activados;
-    VB activados_actual = activados;
+    VB activados_actual(num_nodes, false);
     general_sol(G, activados_actual, sol_actual, ratio);
     int best_score = heuristic_value(sol_actual);
     best_sol = sol_actual;
@@ -207,28 +199,36 @@ VI hillClimbing(Grafo &G, VB &activados, double ratio)
     return best_sol;
 }
 
-int main()
+int main(int argc, char **argv)
 {
-    // Semilla de los números aleatorios.
-    srand(time(NULL));
-    double prob;
-    VB activados;
-    QueueInt Q;
-    Grafo G = leerGrafo(&prob, Q, activados);
-    cout << G.size() << endl;
-    auto start = std::chrono::steady_clock::now();
-
-    VI Solution = hillClimbing(G, activados, prob);
-    auto end = std::chrono::steady_clock::now();
-
-    std::chrono::duration<double> elapsed_seconds = end - start;
-
-    cout << "Solution: { ";
-    for (int i : Solution)
+    if (argc != 2)
     {
-        cout << i << " ";
+        cout << "El uso del programa es: ./localSearchIC <fichero_grafo>" << endl;
+        exit(1);
     }
-    cout << "}\n";
-    cout << endl;
-    std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
+    else
+    {
+        // Semilla de los números aleatorios.
+        srand(time(NULL));
+        double prob;
+        VB activados;
+        QueueInt Q;
+        Grafo G = leerGrafo(&prob, argv[1]);
+        cout << G.size() << endl;
+        auto start = std::chrono::steady_clock::now();
+
+        VI Solution = hillClimbing(G, prob);
+        auto end = std::chrono::steady_clock::now();
+
+        std::chrono::duration<double> elapsed_seconds = end - start;
+
+        cout << "Solution: { ";
+        for (int i : Solution)
+        {
+            cout << i << " ";
+        }
+        cout << "}\n";
+        cout << endl;
+        std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
+    }
 }
