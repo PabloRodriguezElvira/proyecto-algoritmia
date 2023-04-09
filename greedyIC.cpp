@@ -117,25 +117,25 @@ VI ordenarPorGrado(const Grafo& G) {
 //Función que encontra una semilla de tamaño k en un grafo usando el modelo de difusión de la cascada (IC)
 VI greedy(const Grafo& G, const VI& nodosOrdenados, const double& prob, Solucion& sol) {
     VI S;
-    S.push_back(nodosOrdenados[0]);
-
-    Solucion res = difusionIC(G, S, prob);
-    int max = res.C.size();
+    int max = -1;
 
     VI aux;
-    aux = S;
+    Solucion res;
     int n = G.size();
-    for (int i = 1; i < n; ++i) {
+    for (int i = 0; i < n; ++i) {
         aux.push_back(nodosOrdenados[i]);
         Solucion ans = difusionIC(G, aux, prob);
-        int tam = sol.C.size();
-
+        int tam = ans.C.size();
+        cout << max << " " << tam << endl;
         if (max >= tam) break;
-        else res = ans;
+        else {
+           max = tam;
+           res = ans;
+        }
     }
 
-    S = aux;
     sol = res;
+    S = aux;
     return S;
 }
 
