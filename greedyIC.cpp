@@ -123,14 +123,15 @@ VI greedy(const Grafo& G, const VI& nodosOrdenados, const double& prob, Solucion
     Solucion res;
     int n = G.size();
     for (int i = 0; i < n; ++i) {
-        aux.push_back(nodosOrdenados[i]);
-        Solucion ans = difusionIC(G, aux, prob);
+        VI l;
+        l.push_back(nodosOrdenados[i]);
+        Solucion ans = difusionIC(G, l, prob);
         int tam = ans.C.size();
-        cout << max << " " << tam << endl;
         if (max >= tam) break;
-        else {
+        else { //Se guarda el resultado de la ejecución i-1;
            max = tam;
            res = ans;
+           aux = l;
         }
     }
 
