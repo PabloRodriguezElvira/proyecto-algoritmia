@@ -7,6 +7,8 @@
 #include <queue>
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
+#include <ctime>
 using namespace std;
 
 using VI = vector<int>;
@@ -201,6 +203,7 @@ VI hillClimbing(Grafo &G, double ratio)
 
 int main(int argc, char **argv)
 {
+    srand(time(NULL));
     if (argc != 2)
     {
         cout << "El uso del programa es: ./localSearchIC <fichero_grafo>" << endl;
