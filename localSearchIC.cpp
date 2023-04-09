@@ -6,6 +6,7 @@
 #include <sstream>
 #include <queue>
 #include <algorithm>
+#include <chrono>
 using namespace std;
 
 using VI = vector<int>;
@@ -215,11 +216,16 @@ int main()
     QueueInt Q;
     Grafo G = leerGrafo(&prob, Q, activados);
     cout << G.size() << endl;
+    auto start = std::chrono::steady_clock::now();
     VI Solution = hillClimbing(G, activados, prob, Q);
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
     cout << "Solution: { ";
     for (int i : Solution)
     {
         cout << i << " ";
     }
     cout << "}\n";
+    cout << endl;
+    std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
 }

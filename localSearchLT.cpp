@@ -6,6 +6,7 @@
 #include <sstream>
 #include <queue>
 #include <algorithm>
+#include <chrono>
 using namespace std;
 
 struct Node
@@ -144,12 +145,18 @@ void general_sol(Grafo &G, VB &activados, VI &sol_actual, double ratio, VNode &n
         int num_nodes = G.size();
         for (int i = 0; i < num_nodes; i++)
         {
-            if (rand() % 2 == 0)
+            if (rand() % 2 == 1)
             {
                 activados_aux[i] = true;
                 sol_actual_aux.push_back(i);
             }
         }
+        cout << "Solution_random: { ";
+        for (int i : sol_actual_aux)
+        {
+            cout << i << " ";
+        }
+        cout << "}\n";
         if (check_solution(G, activados_aux, ratio, nodos))
             ok = true;
     }
@@ -201,6 +208,7 @@ VI hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q, VNode &nodos
                 int neighbor_score = heuristic_value(neighbor_sol);
                 if (neighbor_score < best_score)
                 {
+                    cout << "}\n";
                     best_score = neighbor_score;
                     best_sol = neighbor_sol;
                     best_activados = neighbor_activate;
@@ -214,11 +222,6 @@ VI hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q, VNode &nodos
         // Actualizamos el conjunto actual al mejor vecino encontrado
         if (improved)
         {
-            cout << "Solution_improve: { ";
-            for (int i : best_sol)
-            {
-                cout << i << " ";
-            }
             cout << "}\n";
             sol_actual = best_sol;
             best_activados = best_activados;
@@ -234,12 +237,16 @@ int main()
     VB activados;
     VNode nodos;
     Grafo G = leerGrafo(&ratio, Q, activados, nodos);
-
+    auto start = std::chrono::steady_clock::now();
     VI Solution = hillClimbing(G, activados, ratio, Q, nodos);
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
     cout << "Solution: { ";
     for (int i : Solution)
     {
         cout << i << " ";
     }
     cout << "}\n";
+    cout << endl;
+    std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
 }
