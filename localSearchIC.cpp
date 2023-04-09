@@ -146,7 +146,7 @@ int heuristic_value(VI &sol_actual)
 }
 
 // Función para calcular el conjunto objetivo óptimo utilizando el algoritmo de Hill Climbing
-VI hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q)
+VI hillClimbing(Grafo &G, VB &activados, double ratio)
 {
     int num_nodes = G.size();
     VI sol_actual;
@@ -217,9 +217,12 @@ int main()
     Grafo G = leerGrafo(&prob, Q, activados);
     cout << G.size() << endl;
     auto start = std::chrono::steady_clock::now();
-    VI Solution = hillClimbing(G, activados, prob, Q);
+
+    VI Solution = hillClimbing(G, activados, prob);
     auto end = std::chrono::steady_clock::now();
+
     std::chrono::duration<double> elapsed_seconds = end - start;
+
     cout << "Solution: { ";
     for (int i : Solution)
     {
