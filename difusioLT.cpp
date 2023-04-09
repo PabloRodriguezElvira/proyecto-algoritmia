@@ -11,28 +11,34 @@ struct Node {
 };
 
 using VI = vector<int>;
-using Grafo = vector<VI>;
 using VNode = vector<Node>;
+using AdjList = vector<VI>;
+using Grafo = pair<AdjList, VNode>;
 using VB = vector<bool>;
 using QueueInt = queue<int>;
 
+struct Solucion {
+    VI C; //Conjunto de Nodos activados
+    int t; //Pasos de tiempo realizados por la difusión.
+};
+
 //Función que se encarga de leer el grafo, la probabilidad y el subconjunto S de un fichero.
-Grafo leerGrafo(double* ratio, QueueInt& Q, VB& activados, VNode& nodos) {
+Grafo leerGrafo(double* ratio, QueueInt& S, const char* nombreFichero) {
     //Fichero que contiene el grafo:
-    string nombreFichero = "grafo01LT.txt";
-    ifstream file(nombreFichero.c_str());
+    ifstream file(nombreFichero);
     string line;
 
     //n -> vértices, m -> aristas
     int n, m;
     getline(file, line); n = atoi(line.c_str());
     getline(file, line); m = atoi(line.c_str());
-    
-    Grafo G(n);
-    nodos.resize(n);
 
-    //Probabilidad:
+    //Ratio:
     getline(file, line); *ratio = atof(line.c_str());
+    
+    AdjList adj(n);
+    VNode nodos(n);
+    Grafo G = make_pair(adj, nodos);
 
     //Leer aristas: 	
     int u, v;
@@ -40,20 +46,27 @@ Grafo leerGrafo(double* ratio, QueueInt& Q, VB& activados, VNode& nodos) {
         getline(file, line); 
         stringstream ss(line);
         ss >> u; ss >> v;
-        nodos[u].llindar += *ratio;
-        nodos[v].llindar += *ratio; 
-        G[u].push_back(v);
-        G[v].push_back(u);
+
+        //Adyacencias:
+        G.first[u].push_back(v);
+        G.first[v].push_back(u);
+
+        //Como el peso de todas las aristas es 1, incrementamos cada umbral en ratio.
+        G.second[u].llindar += *ratio;
+        G.second[v].llindar += *ratio;
+
+        //La influencia recibida inicial de todos los nodos es 0.
+        G.second[u].influencia = 0;
+        G.second[v].influencia = 0;
     }
 
-    //Subconjunto Q:
+    //Subconjunto S:
     int w;
-    activados.resize(n);
     getline(file, line); w = atoi(line.c_str());
-    Q.push(w); activados[w] = true;
+    S.push(w);
     while (w != -1) {
         getline(file, line); w = atoi(line.c_str());
-        if (w != -1) {Q.push(w); activados[w] = true;}
+        if (w != -1) S.push(w);
     }
 
     file.close();
@@ -62,49 +75,61 @@ Grafo leerGrafo(double* ratio, QueueInt& Q, VB& activados, VNode& nodos) {
 
 //Función que visita cada nodo adyacente a u y los activa según si cumplen la condición del modelo de difusión LT. 
 //Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
-void influenciarNodos(const Grafo& G, VB& activados, VI& C, double ratio, int u, int* t, VNode& nodos, QueueInt& Q) {
+void influenciarNodos(Grafo& G, VB& activados, Solucion& sol, const double& ratio, const int& u, QueueInt& S) {
     bool influenciado = false;
-    for (int v : G[u]) {
+    for (int v : G.first[u]) {
         //Incrementamos en 1 la influencia de cada nodo vecino de u.
-        ++nodos[v].influencia;
-        if (!activados[v] && nodos[v].influencia >= nodos[v].llindar) {
+        ++G.second[v].influencia;
+        if (!activados[v] && G.second[v].influencia >= G.second[v].llindar) {
             influenciado = true;
             activados[v] = true; 
-            Q.push(v);
+            S.push(v);
         }
     }
-    if (influenciado) *t = *t + 1;
+    //Aumentamos en 1 los pasos de difusión.
+    if (influenciado) sol.t = sol.t + 1;
 }
 
 //La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según si cumplen la condición
 //del modelo LT.
-VI difusionLT(const Grafo& G, VB& activados, double ratio, QueueInt& Q, int* t, VNode& nodos) {
-    VI C;
-    while (not Q.empty()) {
-        int w = Q.front(); Q.pop();
-        C.push_back(w);
-        influenciarNodos(G, activados, C, ratio, w, t, nodos, Q);
-	//Sacar el conjunto de nodos activados a cada iteracion. Si alguno de estos nodos activa algun otro nodo, ya 
-	//cuenta como t+1.
+Solucion difusionLT(Grafo& G, QueueInt& S, const double& ratio) {
+    Solucion sol; 
+    sol.t = 0;
+    int n = G.second.size();
+    VB activados(n, false);
+
+    while (not S.empty()) {
+        int w = S.front(); S.pop();
+
+        activados[w] = true; //Marcamos nodo como activado.
+        sol.C.push_back(w); //Añadimos el nodo al conjunto solución de nodos activados.
+
+        //Realizamos la difusión:
+        influenciarNodos(G, activados, sol, ratio, w, S);
     } 
-    return C;
+
+    return sol;
 }
 
-int main () {
-    double ratio;
-    QueueInt Q;
-    VB activados;
-    VNode nodos;
-    Grafo G = leerGrafo(&ratio, Q, activados, nodos);
-	
-    int t = 0;
-    VI C = difusionLT(G, activados, ratio, Q, &t, nodos);
+int main (int argc, char** argv) {
+    if (argc != 2) {
+        cout << "El uso del programa es: ./difusioLT <fichero_grafo>" << endl;
+        exit(1);
+    }
+    else {
+        double ratio;
+        QueueInt S;
+        Grafo G = leerGrafo(&ratio, S, argv[1]);
+        
+        //A difusionIC le pasamos la entrada -> el grafo G, el subconjunto de vertices S y la prob p. (o ratio r).
+        Solucion sol = difusionLT(G, S, ratio);
 
-    //Mostrar respuesta:
-    int size = C.size();
-    cout << "Tamaño del conjunto C: " << size << endl;
-    cout << "Número de pasos: " << t << endl;
-    cout << "Nodos activados: {"; 
-    for (int i = 0; i <= size-2; ++i) cout << C[i] << ", ";
-    cout << C[size-1] << "}" << endl;
+        //Mostrar respuesta:
+        int size = sol.C.size();
+        cout << "Tamaño del conjunto C: " << size << endl;
+        cout << "Número de pasos: " << sol.t << endl;
+        cout << "Nodos activados: {"; 
+        for (int i = 0; i <= size-2; ++i) cout << sol.C[i] << ", ";
+        cout << sol.C[size-1] << "}" << endl;
+    }
 } 

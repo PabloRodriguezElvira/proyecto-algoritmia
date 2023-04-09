@@ -10,7 +10,7 @@ using namespace std;
 using VI = vector<int>;
 using Grafo = vector<VI>;
 using VB = vector<bool>;
-using QueueInt = queue<int>;
+using queueInt = queue<int>;
 
 struct Solucion {
     VI C; //Conjunto de Nodos activados
@@ -18,7 +18,7 @@ struct Solucion {
 };
 
 //Función que se encarga de leer el grafo, la probabilidad y el subconjunto S de un fichero.
-Grafo leerGrafo(double* prob, VI& S, const char* nombreFichero) {
+Grafo leerGrafo(double* prob, queueInt& S, const char* nombreFichero) {
     //Fichero que contiene el grafo:
     ifstream file(nombreFichero);
     string line;
@@ -35,6 +35,8 @@ Grafo leerGrafo(double* prob, VI& S, const char* nombreFichero) {
         getline(file, line); 
         stringstream ss(line);
         ss >> u; ss >> v;
+        
+        //Adyacencias.
         G[u].push_back(v);
         G[v].push_back(u);
     }
@@ -42,13 +44,13 @@ Grafo leerGrafo(double* prob, VI& S, const char* nombreFichero) {
     //Probabilidad:
     getline(file, line); *prob = atof(line.c_str());
 
-    //Subconjunto S (en una cola Q).
+    //Subconjunto S:
     int w;
     getline(file, line); w = atoi(line.c_str());
-    S.push_back(w);
+    S.push(w);
     while (w != -1) {
         getline(file, line); w = atoi(line.c_str());
-        if (w != -1) S.push_back(w); 
+        if (w != -1) S.push(w); 
     }
 
     file.close();
@@ -57,13 +59,13 @@ Grafo leerGrafo(double* prob, VI& S, const char* nombreFichero) {
 
 //Función que visita cada nodo adyacente a u y los activa con una probabilidad prob (condición del modelo IC). 
 //Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
-void influenciarNodos(const Grafo& G, VB& activados, Solucion& sol, const double& prob, const int& u, QueueInt& Q) {
+void influenciarNodos(const Grafo& G, VB& activados, Solucion& sol, const double& prob, const int& u, queueInt& S) {
     int pp = prob*10;
     for (int v : G[u]) {
         int random = rand()%9;
         if (!activados[v] && random < pp) {
-            activados[v] = true; 
-            Q.push(v);
+            activados[v] = true;
+            S.push(v);
         }
     }
     //Aumentamos en 1 los pasos de difusión.
@@ -71,27 +73,21 @@ void influenciarNodos(const Grafo& G, VB& activados, Solucion& sol, const double
 }
 
 //La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según la probabilidad prob.
-Solucion difusionIC(const Grafo& G, const VI& S, const double& prob) {
+Solucion difusionIC(const Grafo& G, queueInt& S, const double& prob) {
     Solucion sol; 
     sol.t = 0;
     int n = G.size();
-    QueueInt Q;
     VB activados(n, false);
 
-    //Activamos los vértices de S y los volcamos a la cola Q.
-    for (int v : S) {
-        activados[v] = true;
-        Q.push(v);
-    }
-
     //Mientras la cola no esté vacía, hacemos un paso de difusión desde el nodo que esté en el front de la cola.
-    while (not Q.empty()) {
-        //Añadimos el nodo al conjunto solución de nodos activados.
-        int w = Q.front(); Q.pop();
-        sol.C.push_back(w);
+    while (not S.empty()) {
+        int w = S.front(); S.pop();
+
+        activados[w] = true; //Marcamos nodo como activado.
+        sol.C.push_back(w); //Añadimos el nodo al conjunto solución de nodos activados.
 
         //Realizamos la difusión:
-        influenciarNodos(G, activados, sol, prob, w, Q);
+        influenciarNodos(G, activados, sol, prob, w, S);
     } 
 
     return sol;
@@ -107,13 +103,11 @@ int main (int argc, char** argv) {
         srand(time(NULL)); 
 
         double prob;
-        VB activados;
-        VI S;
+        queueInt S;
         Grafo G = leerGrafo(&prob, S, argv[1]);
-        
-        // VI C = difusionIC(G, activados, prob, Q, &t);
-        Solucion sol = difusionIC(G, S, prob);
+
         //A difusionIC le pasamos la entrada -> el grafo G, el subconjunto de vertices S y la prob p. (o ratio r).
+        Solucion sol = difusionIC(G, S, prob);
 
         //Mostrar respuesta:
         int size = sol.C.size();
