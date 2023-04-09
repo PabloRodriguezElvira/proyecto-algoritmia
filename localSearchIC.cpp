@@ -93,9 +93,15 @@ VI difusionIC(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t)
 }
 
 // comprobar que todos los nodos estan activados
-bool check_solution(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t)
+bool check_solution(const Grafo &G, VB &activados, double ratio, int *t)
 {
     VB activados_aux = activados;
+    QueueInt Q;
+    for (int i = 0; i < activados.size(); ++i)
+    {
+        if (activados[i])
+            Q.push(i);
+    }
     VI C = difusionIC(G, activados_aux, ratio, Q, t);
     int nodes_activados = 0;
     for (auto i : activados_aux)
@@ -116,7 +122,7 @@ void general_sol(Grafo &G, VB &activados, VI &sol_actual, double ratio)
         activados_aux = activados;
         sol_actual_aux = sol_actual;
         int num_nodes = G.size();
-        for (int i = 1; i < num_nodes + 1; i++)
+        for (int i = 0; i < num_nodes; i++)
         {
             if (rand() % 2 == 1)
             {
@@ -125,9 +131,7 @@ void general_sol(Grafo &G, VB &activados, VI &sol_actual, double ratio)
             }
         }
         int t = 0;
-        QueueInt punt_ini;
-        punt_ini.push(sol_actual_aux[0]);
-        if (check_solution(G, activados_aux, ratio, punt_ini, &t))
+        if (check_solution(G, activados_aux, ratio, &t))
             ok = true;
     }
     activados = activados_aux;
@@ -174,9 +178,7 @@ VI hillClimbing(Grafo &G, double ratio)
             neighbor_activate[neighbor_sol[i]] = false;
             neighbor_sol.erase(neighbor_sol.begin() + i);
             int t = 0;
-            QueueInt punt_ini;
-            punt_ini.push(neighbor_sol[0]);
-            if (check_solution(G, neighbor_activate, ratio, punt_ini, &t))
+            if (check_solution(G, neighbor_activate, ratio, &t))
             {
                 int neighbor_score = heuristic_value(neighbor_sol);
                 if (neighbor_score < best_score)
@@ -225,12 +227,7 @@ int main(int argc, char **argv)
 
         std::chrono::duration<double> elapsed_seconds = end - start;
 
-        cout << "Solution: { ";
-        for (int i : Solution)
-        {
-            cout << i << " ";
-        }
-        cout << "}\n";
+        cout << "Tamaño de solucion :" << Solution.size() << endl;
         cout << endl;
         std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
     }
