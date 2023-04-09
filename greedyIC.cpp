@@ -1,10 +1,11 @@
-#include <algorithm>
-#include <ctime>
-#include <fstream>
 #include <iostream>
-#include <queue>
-#include <sstream>
 #include <vector>
+#include <stdlib.h>
+#include <time.h>
+#include <fstream>
+#include <sstream>
+#include <queue>
+#include <algorithm>
 #include <chrono>
 using namespace std;
 
@@ -13,171 +14,157 @@ using Grafo = vector<VI>;
 using VB = vector<bool>;
 using QueueInt = queue<int>;
 
-// Función que se encarga de leer el grafo, la probabilidad y el subconjunto S de un fichero.
-Grafo leerGrafo(double *prob, QueueInt &Q)
-{
-    // Fichero que contiene el grafo:
-    string nombreFichero = "grafo02IC.txt";
-    ifstream file(nombreFichero.c_str());
-    string line;
+struct Solucion {
+    VI C; //Conjunto de Nodos activados
+    int t; //Pasos de tiempo realizados por la difusión.
+};
 
-    // n -> vértices, m -> aristas
+//Función que se encarga de leer el grafo, la probabilidad
+Grafo leerGrafo(double* prob, const char* nombreFichero) {
+    //Fichero que contiene el grafo:
+    ifstream file(nombreFichero);
+    string line;
+    stringstream ss;
+
+    //n -> vértices, m -> aristas
     int n, m;
+    string str;
     getline(file, line);
-    n = atoi(line.c_str());
-    getline(file, line);
-    m = atoi(line.c_str());
+    ss = stringstream(line);
+    ss >> str; ss >> str;
+    ss >> n; ss >> m;
 
     Grafo G(n);
+
+    //Probabilidad:
+    getline(file, line);
+    ss = stringstream(line);
+    ss >> str; ss >> (*prob);
+
+
     int u, v;
-    // Leer aristas:
-    while (m--)
-    {
+    //Leer aristas:
+    while (m--) {
         getline(file, line);
-        stringstream ss(line);
-        ss >> u;
-        ss >> v;
+        ss = stringstream(line);
+        ss >> str;
+        ss >> u; ss >> v;
+        --u; --v;
         G[u].push_back(v);
         G[v].push_back(u);
     }
-
-    // Probabilidad:
-    getline(file, line);
-    *prob = atof(line.c_str());
 
     file.close();
     return G;
 }
 
-// Función que visita cada nodo adyacente a u y los activa con una probabilidad prob (condición del modelo IC).
-// Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
-void influenciarNodos(const Grafo &G, VB &activados, VI &C, double prob, int u, int *t, QueueInt &Q)
-{
-    int pp = prob * 10;
-    for (int v : G[u])
-    {
-        int random = rand() % 9;
-        if (!activados[v] && random < pp)
-        {
+//Función que visita cada nodo adyacente a u y los activa con una probabilidad prob (condición del modelo IC).
+//Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
+void influenciarNodos(const Grafo& G, VB& activados, Solucion& sol, const double& prob, const int& u, QueueInt& Q) {
+    int pp = prob*10;
+    for (int v : G[u]) {
+        int random = rand()%9;
+        if (!activados[v] && random < pp) {
             activados[v] = true;
             Q.push(v);
         }
     }
-    *t = *t + 1;
+    //Aumentamos en 1 los pasos de difusión.
+    sol.t = sol.t + 1;
 }
 
-// La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según la probabilidad prob.
-VI difusionIC(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t)
-{
-    VI C;
-    while (not Q.empty())
-    {
-        int w = Q.front();
-        Q.pop();
-        C.push_back(w);
-        influenciarNodos(G, activados, C, ratio, w, t, Q);
-    }
-    return C;
-}
-
-// Función greedy para encontrar el conjunto mínimo de nodos iniciales que maximice la activación
-VI greedy(const Grafo &G, double prob)
-{
+//La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según la probabilidad prob.
+Solucion difusionIC(const Grafo& G, const VI& S, const double& prob) {
+    Solucion sol;
+    sol.t = 0;
     int n = G.size();
-    VI candidatos(n);
+    QueueInt Q;
+    VB activados(n, false);
+
+    //Activamos los vértices de S y los volcamos a la cola Q.
+    for (int v : S) {
+        activados[v] = true;
+        Q.push(v);
+    }
+
+    //Mientras la cola no esté vacía, hacemos un paso de difusión desde el nodo que esté en el front de la cola.
+    while (not Q.empty()) {
+        //Añadimos el nodo al conjunto solución de nodos activados.
+        int w = Q.front(); Q.pop();
+        sol.C.push_back(w);
+
+        //Realizamos la difusión:
+        influenciarNodos(G, activados, sol, prob, w, Q);
+    }
+
+    return sol;
+}
+
+//Función que ordena los nodos según su grado en orden decreciente y los devuelve en un vector.
+VI ordenarPorGrado(const Grafo& G) {
+    int n = G.size();
+    vector<pair<int,int>> nodosGrado(n);
+    for (int u = 1; u <= n; ++u) {
+        int grado = G[u].size();
+        nodosGrado[u] = make_pair(grado, u);
+    }
+    sort(nodosGrado.rbegin(), nodosGrado.rend());
+    VI nodosOrdenados(n);
+    for (int i = 0; i < n; ++i) nodosOrdenados[i] = nodosGrado[i].second;
+    return nodosOrdenados;
+}
+
+//Función que encontra una semilla de tamaño k en un grafo usando el modelo de difusión de la cascada (IC)
+VI greedy(const Grafo& G, const VI& nodosOrdenados, const double& prob, Solucion& sol) {
     VI S;
-    int max_activacion = 0;
+    int max = -1;
 
-    // Inicializar el conjunto de candidatos con todos los nodos del grafo
-    for (int i = 0; i < n; ++i)
-    {
-        candidatos[i] = i;
-    }
-
-    bool mejora = true;
-    while (!candidatos.empty() && mejora)
-    {
-        mejora = false;
-        int nodo_seleccionado = -1;
-        int max_contribucion = 0;
-
-        for (int nodo : candidatos)
-        {
-            // Calcular la contribución del nodo a la activación si se agrega a Q
-            VB activados(n, false);
-            QueueInt Q;
-            for (int s : S)
-            {
-                Q.push(s);
-                activados[s] = true;
-            }
-            Q.push(nodo);
-            activados[nodo] = true;
-
-            int t = 0;
-            VI C = difusionIC(G, activados, prob, Q, &t);
-
-            int contribucion = C.size() - max_activacion;
-            if (contribucion > max_contribucion)
-            {
-                max_contribucion = contribucion;
-                nodo_seleccionado = nodo;
-                mejora = true;
-            }
-        }
-
-        if (mejora)
-        {
-            // Agregar el nodo seleccionado a Q y eliminarlo de los candidatos
-            S.push_back(nodo_seleccionado);
-            candidatos.erase(remove(candidatos.begin(), candidatos.end(), nodo_seleccionado), candidatos.end());
-            max_activacion += max_contribucion;
+    VI aux;
+    Solucion res;
+    int n = G.size();
+    for (int i = 0; i < n; ++i) {
+        VI l;
+        l.push_back(nodosOrdenados[i]);
+        Solucion ans = difusionIC(G, l, prob);
+        int tam = ans.C.size();
+        if (max >= tam) break;
+        else { //Se guarda el resultado de la ejecución i-1;
+           max = tam;
+           res = ans;
+           aux = l;
         }
     }
 
+    sol = res;
+    S = aux;
     return S;
 }
 
-int main()
-{
-    // Semilla de los números aleatorios.
-    srand(time(NULL));
 
-    double prob;
-    VB activados;
-    QueueInt Q;
-    Grafo G = leerGrafo(&prob, Q);
-    auto start = std::chrono::steady_clock::now();
-    VI S = greedy(G, prob);
-
-    int tam = S.size();
-    cout << "Subconjunto inicial: {";
-    for (int i = 0; i <= tam - 2; ++i)
-        cout << S[i] << ", ";
-    cout << S[tam - 1] << "}" << endl;
-
-    // Inicializar activados y Q con los nodos seleccionados en S
-    activados.assign(G.size(), false);
-    for (int s : S)
-    {
-        Q.push(s);
-        activados[s] = true;
+int main (int argc, char** argv) {
+    if (argc != 2) {
+        cout << "El uso del programa es: ./difusioIC <fichero_grafo>" << endl;
+        exit(1);
     }
+    else {
+        //Semilla de los números aleatorios.
+        srand(time(NULL));
 
-    int t = 0;
-    VI C = difusionIC(G, activados, prob, Q, &t);
+        double prob;
+        VB activados;
+        VI S;
+        Grafo G = leerGrafo(&prob, argv[1]);
+        VI nodosOrdenados = ordenarPorGrado(G);
 
-    auto end = std::chrono::steady_clock::now();
-    std::chrono::duration<double> elapsed_seconds = end - start;
-    // Mostrar respuesta:
-    int size = C.size();
-    cout << "Tamaño del conjunto C: " << size << endl;
-    cout << "Número de pasos: " << t << endl;
-    cout << "Nodos activados: {";
-    for (int i = 0; i <= size - 2; ++i)
-        cout << C[i] << ", ";
-    cout << C[size - 1] << "}" << endl;
+        Solucion sol;
+        auto start = std::chrono::steady_clock::now();
+        S = greedy(G, nodosOrdenados, prob, sol);
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
 
-    cout << endl;
-    std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
+        cout << "Tamaño del subconjunto S: " << S.size() << endl;
+        cout << "Tamaño del conjunto C: " << sol.C.size() << endl;
+        cout << "Número de pasos: " << sol.t << endl;
+        std::cout << "Tiempo de ejecución: " << elapsed_seconds.count() << " segundos" << std::endl;
+    }
 }
