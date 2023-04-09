@@ -13,7 +13,7 @@ using VB = vector<bool>;
 using QueueInt = queue<int>;
 
 //Función que se encarga de leer el grafo, la probabilidad y el subconjunto S de un fichero.
-Grafo leerGrafo(double* prob, QueueInt& Q, VB& activados) {
+Grafo leerGrafo(double* prob, QueueInt& Q) {
     //Fichero que contiene el grafo:
     string nombreFichero = "grafo02IC.txt";
     ifstream file(nombreFichero.c_str());
@@ -125,7 +125,7 @@ int main() {
     double prob;
     VB activados;
     QueueInt Q;
-    Grafo G = leerGrafo(&prob, Q, activados);
+    Grafo G = leerGrafo(&prob, Q);
 
     VI S = greedy(G, prob);
 
