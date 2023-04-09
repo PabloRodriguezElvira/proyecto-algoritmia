@@ -6,6 +6,7 @@
 #include <sstream>
 #include <queue>
 #include <algorithm>
+#include <chrono>
 using namespace std;
 
 struct Node
@@ -236,12 +237,16 @@ int main()
     VB activados;
     VNode nodos;
     Grafo G = leerGrafo(&ratio, Q, activados, nodos);
-
+    auto start = std::chrono::steady_clock::now();
     VI Solution = hillClimbing(G, activados, ratio, Q, nodos);
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
     cout << "Solution: { ";
     for (int i : Solution)
     {
         cout << i << " ";
     }
     cout << "}\n";
+    cout << endl;
+    std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
 }

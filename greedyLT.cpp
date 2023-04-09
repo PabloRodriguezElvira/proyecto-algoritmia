@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <queue>
+#include <chrono>
 using namespace std;
 
 struct Node
@@ -75,7 +76,8 @@ void influenciarNodos(const Grafo &G, VB &activados, VI &C, double ratio, int u,
             Q.push(v);
         }
     }
-    if (influenciado) *t = *t + 1;
+    if (influenciado)
+        *t = *t + 1;
 }
 
 // La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según si cumplen la condición
@@ -108,7 +110,7 @@ vector<pair<double, int>> Ordenar(VNode &nodos)
 }
 
 // Escoge el valor mínimo de K, que activa todo el grafo
-VI escogerK(const Grafo &G, double ratio, const VNode &nodos, const VPair &pares, int& t_optima, QueueInt& Q_inicial)
+VI escogerK(const Grafo &G, double ratio, const VNode &nodos, const VPair &pares, int &t_optima, QueueInt &Q_inicial)
 {
     VI C;
     int n = G.size();
@@ -116,26 +118,30 @@ VI escogerK(const Grafo &G, double ratio, const VNode &nodos, const VPair &pares
     int k_max = n;
     int k_optimo = -1;
     int t;
-    while (k_min <= k_max) {
+    while (k_min <= k_max)
+    {
         int k_mid = (k_min + k_max) / 2;
         VB activados(n, false);
         QueueInt Q;
-        for (int i = 0; i < k_mid; ++i) {
+        for (int i = 0; i < k_mid; ++i)
+        {
             activados[pares[i].second] = true;
             Q.push(pares[i].second);
         }
-        Q_inicial = Q; 
+        Q_inicial = Q;
         VNode aux = nodos;
         t = 0;
         C = difusionLT(G, activados, ratio, Q, &t, aux);
         int tamano_C = C.size();
-        cout << k_mid << " " << tamano_C << endl; //Aqui esta el problema!!!!
+        cout << k_mid << " " << tamano_C << endl; // Aqui esta el problema!!!!
 
-        if (tamano_C == n) { //Si el tamaño de C es todo el grafo, busca si hay un valor menor de k. Sino aumenta el valor de K.
+        if (tamano_C == n)
+        { // Si el tamaño de C es todo el grafo, busca si hay un valor menor de k. Sino aumenta el valor de K.
             k_optimo = k_mid;
             k_max = k_mid - 1;
         }
-        else k_min = k_mid + 1;
+        else
+            k_min = k_mid + 1;
     }
     t_optima = t;
     return C;
@@ -160,25 +166,33 @@ int main()
     VNode nodos;
     int t_optima;
     Grafo G = leerGrafo(&ratio, nodos);
+    auto start = std::chrono::steady_clock::now();
     VPair pares = Ordenar(nodos);
 
     VI C = escogerK(G, ratio, nodos, pares, t_optima, Q);
 
-    //Hacemos que el subconjunto S sea la cola Q.
+    // Hacemos que el subconjunto S sea la cola Q.
     int tam = Q.size();
     cout << "Subconjunto inicial: {";
-    for (int i = 0; i <= tam - 2; ++i) {
+    for (int i = 0; i <= tam - 2; ++i)
+    {
         cout << Q.front() << ", ";
         Q.pop();
     }
     cout << Q.front() << "}" << endl;
     Q.pop();
 
-    //Mostrar respuesta:
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
+    // Mostrar respuesta:
     int size = C.size();
     cout << "Tamaño del conjunto C: " << size << endl;
     cout << "Número de pasos: " << t_optima << endl;
     cout << "Nodos activados: {";
-    for (int i = 0; i <= size-2; ++i) cout << C[i] << ", ";
-    cout << C[size-1] << "}" << endl;
+    for (int i = 0; i <= size - 2; ++i)
+        cout << C[i] << ", ";
+    cout << C[size - 1] << "}" << endl;
+
+    cout << endl;
+    std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
 }
