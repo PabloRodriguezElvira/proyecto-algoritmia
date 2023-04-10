@@ -6,6 +6,10 @@
 #include <sstream>
 #include <queue>
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <ctime>
+#include <cmath>
 using namespace std;
 
 using VI = vector<int>;
@@ -13,59 +17,53 @@ using Grafo = vector<VI>;
 using VB = vector<bool>;
 using QueueInt = queue<int>;
 
+int m;              //numero total de aristas
+
 // Función que se encarga de leer el grafo, la probabilidad y el subconjunto S de un fichero.
-Grafo leerGrafo(double *prob, QueueInt &Q, VB &activados)
+Grafo leerGrafo(double *prob, const char *nombreFichero)
 {
     // Fichero que contiene el grafo:
-    string nombreFichero = "grafo03IC.txt";
-    ifstream file(nombreFichero.c_str());
+    ifstream file(nombreFichero);
     string line;
+    stringstream ss;
 
     // n -> vértices, m -> aristas
-    int n, m;
+    int n;
+    string str;
     getline(file, line);
-    n = atoi(line.c_str());
-    getline(file, line);
-    m = atoi(line.c_str());
+    ss = stringstream(line);
+    ss >> str;
+    ss >> str; // Leer p y edge.
+    ss >> n;
+    ss >> m;
 
     Grafo G(n);
-    int u, v;
+
+    // Leer probabilidad.
+    getline(file, line);
+    ss = stringstream(line);
+    ss >> str;
+    ss >> (*prob);
+
     // Leer aristas:
+    int u, v;
     while (m--)
     {
         getline(file, line);
-        stringstream ss(line);
+        ss = stringstream(line);
+        ss >> str; // Leer p.
         ss >> u;
         ss >> v;
+        --u;
+        --v; // Los nodos van de 1 a n.
         G[u].push_back(v);
         G[v].push_back(u);
-    }
-
-    // Probabilidad:
-    getline(file, line);
-    *prob = atof(line.c_str());
-
-    // Subconjunto Q:
-    int w;
-    activados.resize(n);
-    getline(file, line);
-    w = atoi(line.c_str());
-    Q.push(w);
-    activados[w] = true;
-    while (w != -1)
-    {
-        getline(file, line);
-        w = atoi(line.c_str());
-        if (w != -1)
-        {
-            Q.push(w);
-            activados[w] = true;
-        }
     }
 
     file.close();
     return G;
 }
+
 // Función que visita cada nodo adyacente a u y los activa con una probabilidad prob (condición del modelo IC).
 // Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
 void influenciarNodos(const Grafo &G, VB &activados, VI &C, double prob, int u, int *t, QueueInt &Q)
@@ -98,9 +96,15 @@ VI difusionIC(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t)
 }
 
 // comprobar que todos los nodos estan activados
-bool check_solution(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t)
+bool check_solution(const Grafo &G, VB &activados, double ratio, int *t)
 {
     VB activados_aux = activados;
+    QueueInt Q;
+    for (int i = 0; i < activados.size(); ++i)
+    {
+        if (activados[i])
+            Q.push(i);
+    }
     VI C = difusionIC(G, activados_aux, ratio, Q, t);
     int nodes_activados = 0;
     for (auto i : activados_aux)
@@ -111,73 +115,53 @@ bool check_solution(const Grafo &G, VB &activados, double ratio, QueueInt &Q, in
     return (nodes_activados == G.size());
 }
 
-//algoritmo greedy para sacar una solucion óptima local.
-VI greedy(Grafo &G, VB &activados, VI &sol_actual, double prob)
+void general_sol(Grafo &G, VB &activados, VI &sol_actual, double ratio)
 {
-    int n = G.size();
-    VI candidatos(n);
-    VI S;
-    int max_activacion = 0;
-
-    // Inicializar el conjunto de candidatos con todos los nodos del grafo
-    for (int i = 0; i < n; ++i) {
-        candidatos[i] = i;
-    }
-
-    bool mejora = true;
-    while (!candidatos.empty() && mejora) {
-        mejora = false;
-        int nodo_seleccionado = -1;
-        int max_contribucion = 0;
-
-        for (int nodo : candidatos) {
-            // Calcular la contribución del nodo a la activación si se agrega a Q
-            VB activados(n, false);
-            QueueInt Q;
-            for (int s : S) {
-                Q.push(s);
-                activados[s] = true;
-            }
-            Q.push(nodo);
-            activados[nodo] = true;
-
-            int t = 0;
-            VI C = difusionIC(G, activados, prob, Q, &t);
-
-            int contribucion = C.size() - max_activacion;
-            if (contribucion > max_contribucion) {
-                max_contribucion = contribucion;
-                nodo_seleccionado = nodo;
-                mejora = true;
+    bool ok = false;
+    VB activados_aux;
+    VI sol_actual_aux;
+    while (not ok) // generar solucin randoment que sea valido
+    {
+        activados_aux = activados;
+        sol_actual_aux = sol_actual;
+        int num_nodes = G.size();
+        for (int i = 0; i < num_nodes; i++)
+        {
+            if (rand() % 2 == 1)
+            {
+                activados_aux[i] = true;
+                sol_actual_aux.push_back(i);
             }
         }
+        int t = 0;
+        if (check_solution(G, activados_aux, ratio, &t))
+            ok = true;
+    }
+    activados = activados_aux;
+    sol_actual = sol_actual_aux;
+}
 
-        if (mejora) {
-            // Agregar el nodo seleccionado a Q y eliminarlo de los candidatos
-            S.push_back(nodo_seleccionado);
-            candidatos.erase(remove(candidatos.begin(), candidatos.end(), nodo_seleccionado), candidatos.end());
-            max_activacion += max_contribucion;
-        }
+double heuristic_value(Grafo& G, VI &sol_actual)
+{
+    int aristas = 0;
+    double value;      //valor heuristico
+
+    for(int i=0; i<sol_actual.size(); ++i){
+        aristas += G[i].size();
     }
 
-    return S;
+    return (sol_actual.size() - double(aristas/m));
 }
 
-int heuristic_value(VI &sol_actual)
-{
-    return sol_actual.size();
-}
-
-// Función para calcular el conjunto objetivo óptimo utilizando el algoritmo de greedy + Hill Climbing(metaheuristica).
-VI  greedy_and_hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q)
+VI simulated_Annealing(Grafo &G, double ratio)
 {
     int num_nodes = G.size();
     VI sol_actual;
     VI best_sol;
     VB best_activados;
-    VB activados_actual = activados;
-    sol_actual = greedy(G, activados_actual, sol_actual, ratio);
-    int best_score = heuristic_value(sol_actual);
+    VB activados_actual(num_nodes, false);
+    general_sol(G, activados_actual, sol_actual, ratio);
+    double best_score = heuristic_value(G, sol_actual);
     best_sol = sol_actual;
     best_activados = activados_actual;
 
@@ -187,63 +171,78 @@ VI  greedy_and_hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q)
         cout << i << " ";
     }
     cout << "}\n";
-
-    // Iteramos hasta que no podamos encontrar una solución mejor
-    bool improved = true;
-    while (improved)
+    double initial_temperature = 1000;
+    double cooling_rate = 0.5;
+    double temperature = initial_temperature;
+    while (temperature > 0.001)
     {
-        improved = false;
-
-        // Evaluamos todos los vecinos del conjunto actual
-        for (int i = 0; i < sol_actual.size() && sol_actual.size() > 1; i++)
+        for (int i = 0; i < 100; i++) // número de iteraciones por temperatura
         {
+            // Escoger un vecino aleatorio
+            int random_index = rand() % sol_actual.size();
 
             VI neighbor_sol = sol_actual;
             VB neighbor_activate = best_activados;
-            neighbor_activate[neighbor_sol[i]] = false;
-            neighbor_sol.erase(neighbor_sol.begin() + i);
+            neighbor_activate[neighbor_sol[random_index]] = false;
+            neighbor_sol.erase(neighbor_sol.begin() + random_index);
+
             int t = 0;
-            QueueInt punt_ini;
-            punt_ini.push(neighbor_sol[0]);
-            if (check_solution(G, neighbor_activate, ratio, punt_ini, &t))
+            if (check_solution(G, neighbor_activate, ratio, &t))
             {
-                int neighbor_score = heuristic_value(neighbor_sol);
-                if (neighbor_score < best_score)
+                double neighbor_score = heuristic_value(G, neighbor_sol);
+
+                // Calcular la diferencia de energía (score) entre la solución actual y el vecino
+                int energy_diff = neighbor_score - best_score;
+
+                if (energy_diff < 0)
                 {
+                    // Si el vecino es mejor, actualizar la solución actual
                     best_score = neighbor_score;
                     best_sol = neighbor_sol;
                     best_activados = neighbor_activate;
-                    improved = true;
+                    sol_actual = neighbor_sol;
+                }
+                else if (exp(-energy_diff / temperature) > ((double)rand() / (double)RAND_MAX))
+                {
+                    // Si el vecino es peor, aceptarlo con una probabilidad que depende de la temperatura
+                    sol_actual = neighbor_sol;
                 }
             }
-
-            // Si encontramos un vecino mejor, actualizamos la solución actual
         }
 
-        // Actualizamos el conjunto actual al mejor vecino encontrado
-        if (improved)
-        {
-            sol_actual = best_sol;
-            best_activados = best_activados;
-        }
+        // Enfriar la temperatura
+        temperature *= cooling_rate;
     }
+
     return best_sol;
 }
 
-int main()
+int main(int argc, char **argv)
 {
-    // Semilla de los números aleatorios.
     srand(time(NULL));
-    double prob;
-    VB activados;
-    QueueInt Q;
-    Grafo G = leerGrafo(&prob, Q, activados);
-    cout << G.size() << endl;
-    VI Solution = greedy_and_hillClimbing(G, activados, prob, Q);
-    cout << "Solution: { ";
-    for (int i : Solution)
+    if (argc != 2)
     {
-        cout << i << " ";
+        cout << "El uso del programa es: ./metaheuristicIC <fichero_grafo>" << endl;
+        exit(1);
     }
-    cout << "}\n";
+    else
+    {
+        // Semilla de los números aleatorios.
+        srand(time(NULL));
+        double prob;
+        VB activados;
+        QueueInt Q;
+        Grafo G = leerGrafo(&prob, argv[1]);
+        cout << G.size() << endl;
+        auto start = std::chrono::steady_clock::now();
+
+        VI Solution = simulated_Annealing(G, prob);
+        auto end = std::chrono::steady_clock::now();
+
+        std::chrono::duration<double> elapsed_seconds = end - start;
+
+        cout << "Tamaño de solucion :" << Solution.size() << endl;
+        cout << endl;
+        std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
+    }
 }
