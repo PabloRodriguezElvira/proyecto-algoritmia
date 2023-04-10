@@ -247,7 +247,7 @@ int main(int argc, char **argv)
     srand(time(NULL));
     if (argc != 2)
     {
-        cout << "El uso del programa es: ./localSearchLT <fichero_grafo>" << endl;
+        cout << "El uso del programa es: ./metaheuristicLT <fichero_grafo>" << endl;
         exit(1);
     }
     else
