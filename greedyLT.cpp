@@ -64,7 +64,7 @@ Grafo leerGrafo(double* ratio, const char* nombreFichero) {
 //Busca el nodo con mayor grado que esté disponible (que no haya sido activado).
 int buscar_nodo_mayor(const VPair& ord, const VB& disp) {
     for (int i = 0; i < ord.size(); ++i) {
-        if (!disp[ord[i].first]) return ord[i].first;
+        if (disp[ord[i].first]) return ord[i].first;
     }
     return -1; //No se ha encontrado.
 }
@@ -77,7 +77,7 @@ pair<queueInt, Solucion> greedy(Grafo& G, const double& ratio) {
     //Vamos a tener un vector "disponibles" para "eliminar" los nodos que ya hayan sido activados
     //de la estructura de "ordenados". En "ordenados" vamos a tener los nodos ordenados decrecientemente
     //por su umbral.
-    VB disponibles(n, false);
+    VB disponibles(n, true);
     VPair ordenados(n);
 
     //Introducir los nodos.
@@ -100,7 +100,7 @@ pair<queueInt, Solucion> greedy(Grafo& G, const double& ratio) {
     
         //Quitar los nodos que ya hayan sido activados.
         for (int v : sol.C) {
-            disponibles[v] = true;
+            disponibles[v] = false;
         }
 
         //Hemos activado todos los nodos.

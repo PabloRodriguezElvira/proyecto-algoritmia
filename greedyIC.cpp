@@ -1,23 +1,13 @@
-#include <iostream>
-#include <vector>
-#include <stdlib.h>
-#include <time.h>
-#include <fstream>
-#include <sstream>
-#include <queue>
+#include "difusioIC.cpp"
 #include <algorithm>
 #include <chrono>
 using namespace std;
 
-using VI = vector<int>;
-using Grafo = vector<VI>;
-using VB = vector<bool>;
-using QueueInt = queue<int>;
+using VPair = vector<pair<int, int>>;
 
-struct Solucion {
-    VI C; //Conjunto de Nodos activados
-    int t; //Pasos de tiempo realizados por la difusión.
-};
+const bool cmp (pair<int,int> a, pair<int,int> b) {
+    return a.second > b.second;
+}
 
 //Función que se encarga de leer el grafo, la probabilidad
 Grafo leerGrafo(double* prob, const char* nombreFichero) {
@@ -58,92 +48,50 @@ Grafo leerGrafo(double* prob, const char* nombreFichero) {
     return G;
 }
 
-//Función que visita cada nodo adyacente a u y los activa con una probabilidad prob (condición del modelo IC).
-//Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
-void influenciarNodos(const Grafo& G, VB& activados, Solucion& sol, const double& prob, const int& u, QueueInt& Q) {
-    int pp = prob*10;
-    for (int v : G[u]) {
-        int random = rand()%9;
-        if (!activados[v] && random < pp) {
-            activados[v] = true;
-            Q.push(v);
-        }
-    }
-    //Aumentamos en 1 los pasos de difusión.
-    sol.t = sol.t + 1;
-}
-
-//La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según la probabilidad prob.
-Solucion difusionIC(const Grafo& G, const VI& S, const double& prob) {
-    Solucion sol;
-    sol.t = 0;
-    int n = G.size();
-    QueueInt Q;
-    VB activados(n, false);
-
-    //Activamos los vértices de S y los volcamos a la cola Q.
-    for (int v : S) {
-        activados[v] = true;
-        Q.push(v);
-    }
-
-    //Mientras la cola no esté vacía, hacemos un paso de difusión desde el nodo que esté en el front de la cola.
-    while (not Q.empty()) {
-        //Añadimos el nodo al conjunto solución de nodos activados.
-        int w = Q.front(); Q.pop();
-        sol.C.push_back(w);
-
-        //Realizamos la difusión:
-        influenciarNodos(G, activados, sol, prob, w, Q);
-    }
-
-    return sol;
-}
-
 //Función que ordena los nodos según su grado en orden decreciente y los devuelve en un vector.
-VI ordenarPorGrado(const Grafo& G) {
-    int n = G.size();
-    vector<pair<int,int>> nodosGrado(n);
-    for (int u = 1; u <= n; ++u) {
-        int grado = G[u].size();
-        nodosGrado[u] = make_pair(grado, u);
+VPair ordenarPorGrado(const Grafo& grafo) {
+    int n = grafo.size();
+    VPair pares(n);
+
+    for (int i = 0; i < n; ++i) {
+        int grado_i = grafo[i].size(); //Grado del vértice.
+        pares.push_back({i, grado_i});
     }
-    sort(nodosGrado.rbegin(), nodosGrado.rend());
-    VI nodosOrdenados(n);
-    for (int i = 0; i < n; ++i) nodosOrdenados[i] = nodosGrado[i].second;
-    return nodosOrdenados;
+
+    //Ordenamos de forma decreciente por grado del vértice.
+    sort(pares.begin(), pares.end(), cmp);
+
+    return pares;
 }
 
-//Función que encontra una semilla de tamaño k en un grafo usando el modelo de difusión de la cascada (IC)
-VI greedy(const Grafo& G, const VI& nodosOrdenados, const double& prob, Solucion& sol) {
-    VI S;
+//Encuentra el subconjunto mínimo inicial (queueInt) y los nodos activados (solucion) usando la estrategia greedy.
+queueInt greedy(const Grafo& G, const VPair& nodosOrdenados, const double& prob, Solucion& sol) { 
     int max = -1;
 
-    VI aux;
-    Solucion res;
+    queueInt S, SS;
+    // Solucion res;
+
     int n = G.size();
     for (int i = 0; i < n; ++i) {
-        VI l;
-        l.push_back(nodosOrdenados[i]);
-        Solucion ans = difusionIC(G, l, prob);
+        SS.push(nodosOrdenados[i].first);
+        cout << "Tam cola: " << SS.size() << endl;
+        Solucion ans = difusionIC(G, SS, prob);
         int tam = ans.C.size();
         if (max >= tam) break;
         else { //Se guarda el resultado de la ejecución i-1;
            max = tam;
-           res = ans;
-           aux = l;
+           sol = ans;
+           S = SS;
         }
     }
 
-    sol = res;
-    S = aux;
+    // sol = res; 
     return S;
 }
 
-
 int main (int argc, char** argv) {
     if (argc != 2) {
-        cout << "El uso del programa es: ./difusioIC <fichero_grafo>" << endl;
+        cout << "El uso del programa es: ./greedyIC <fichero_grafo>" << endl;
         exit(1);
     }
     else {
@@ -151,14 +99,15 @@ int main (int argc, char** argv) {
         srand(time(NULL));
 
         double prob;
-        VB activados;
-        VI S;
         Grafo G = leerGrafo(&prob, argv[1]);
-        VI nodosOrdenados = ordenarPorGrado(G);
 
-        Solucion sol;
         auto start = std::chrono::steady_clock::now();
-        S = greedy(G, nodosOrdenados, prob, sol);
+
+        VPair ordenados = ordenarPorGrado(G);
+        Solucion sol;
+
+        queueInt S = greedy(G, ordenados, prob, sol);
+
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapsed_seconds = end - start;
 
