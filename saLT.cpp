@@ -187,6 +187,7 @@ VI simulated_Annealing(Grafo &G, double ratio)
         cout << i << " ";
     }
     cout << "}\n";
+
     double initial_temperature = 10000;
     double cooling_rate = 0.5;
     double temperature = initial_temperature;
@@ -208,19 +209,17 @@ VI simulated_Annealing(Grafo &G, double ratio)
                 int neighbor_score = heuristic_value(neighbor_sol);
 
                 // Calcular la diferencia de energía (score) entre la solución actual y el vecino
-                int energy_diff = neighbor_score - best_score;
+                int difference = neighbor_score - best_score;
 
-                if (energy_diff < 0)
+                if (difference < 0)
                 {
-                    // Si el vecino es mejor, actualizar la solución actual
                     best_score = neighbor_score;
                     best_sol = neighbor_sol;
                     best_activados = neighbor_activate;
                     sol_actual = neighbor_sol;
                 }
-                else if (exp(-energy_diff / temperature) > ((double)rand() / (double)RAND_MAX))
+                else if (exp(-difference / temperature) > ((double)rand() / (double)RAND_MAX))
                 {
-                    // Si el vecino es peor, aceptarlo con una probabilidad que depende de la temperatura
                     sol_actual = neighbor_sol;
                 }
             }
