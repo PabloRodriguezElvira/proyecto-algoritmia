@@ -6,6 +6,10 @@
 #include <sstream>
 #include <queue>
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <ctime>
+#include <cmath>
 using namespace std;
 
 struct Node
@@ -15,80 +19,77 @@ struct Node
 };
 
 using VI = vector<int>;
-using Grafo = vector<VI>;
 using VNode = vector<Node>;
+using AdjList = vector<VI>;
+using Grafo = pair<AdjList, VNode>;
 using VB = vector<bool>;
 using QueueInt = queue<int>;
-using VPair = vector<pair<double, int>>;
+
+int m;                  //numero de aristas
 
 // Función que se encarga de leer el grafo, la probabilidad y el subconjunto S de un fichero.
-Grafo leerGrafo(double *ratio, QueueInt &Q, VB &activados, VNode &nodos)
+Grafo leerGrafo(double *ratio, const char *nombreFichero)
 {
     // Fichero que contiene el grafo:
-    string nombreFichero = "grafo01LT.txt";
-    ifstream file(nombreFichero.c_str());
+    ifstream file(nombreFichero);
     string line;
+    stringstream ss;
 
     // n -> vértices, m -> aristas
-    int n, m;
+    int n;
+    string str;
     getline(file, line);
-    n = atoi(line.c_str());
+    ss = stringstream(line);
+    ss >> str;
+    ss >> str; // Leer p y edge.
+    ss >> n;
+    ss >> m;
+
+    AdjList adj(n);
+    VNode nodos(n);
+    Grafo G = make_pair(adj, nodos);
+
+    // Leer ratio.
     getline(file, line);
-    m = atoi(line.c_str());
-
-    Grafo G(n);
-    nodos.resize(n);
-
-    // Probabilidad:
-    getline(file, line);
-    *ratio = atof(line.c_str());
-
+    ss = stringstream(line);
+    ss >> str;
+    ss >> (*ratio);
     // Leer aristas:
     int u, v;
     while (m--)
     {
         getline(file, line);
         stringstream ss(line);
+        ss >> str;
         ss >> u;
         ss >> v;
-        nodos[u].llindar += *ratio;
-        nodos[v].llindar += *ratio;
-        G[u].push_back(v);
-        G[v].push_back(u);
-    }
+        --u;
+        --v;
+        G.first[u].push_back(v);
+        G.first[v].push_back(u);
 
-    // Subconjunto Q:
-    int w;
-    activados.resize(n);
-    getline(file, line);
-    w = atoi(line.c_str());
-    Q.push(w);
-    activados[w] = true;
-    while (w != -1)
-    {
-        getline(file, line);
-        w = atoi(line.c_str());
-        if (w != -1)
-        {
-            Q.push(w);
-            activados[w] = true;
-        }
-    }
+        // Como el peso de todas las aristas es 1, incrementamos cada umbral en ratio.
+        G.second[u].llindar += *ratio;
+        G.second[v].llindar += *ratio;
 
+        // La influencia recibida inicial de todos los nodos es 0.
+        G.second[u].influencia = 0;
+        G.second[v].influencia = 0;
+    }
     file.close();
     return G;
 }
 
 // Función que visita cada nodo adyacente a u y los activa según si cumplen la condición del modelo de difusión LT.
 // Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
-void influenciarNodos(const Grafo &G, VB &activados, VI &C, double ratio, int u, int *t, VNode &nodos, QueueInt &Q)
+void influenciarNodos(Grafo &G, VB &activados, VI &C, double ratio, int u, int *t, QueueInt &Q)
 {
     bool influenciado = false;
-    for (int v : G[u])
+    for (int v : G.first[u])
     {
         // Incrementamos en 1 la influencia de cada nodo vecino de u.
-        ++nodos[v].influencia;
-        if (!activados[v] && nodos[v].influencia >= nodos[v].llindar)
+        ++G.second[v].influencia;
+        if (!activados[v] && G.second[v].influencia >= G.second[v].llindar)
         {
             influenciado = true;
             activados[v] = true;
@@ -101,7 +102,7 @@ void influenciarNodos(const Grafo &G, VB &activados, VI &C, double ratio, int u,
 
 // La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según si cumplen la condición
 // del modelo LT.
-VI difusionLT(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t, VNode &nodos)
+VI difusionLT(Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t)
 {
     VI C;
     while (not Q.empty())
@@ -109,92 +110,83 @@ VI difusionLT(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t, 
         int w = Q.front();
         Q.pop();
         C.push_back(w);
-        influenciarNodos(G, activados, C, ratio, w, t, nodos, Q);
+        influenciarNodos(G, activados, C, ratio, w, t, Q);
         // Sacar el conjunto de nodos activados a cada iteracion. Si alguno de estos nodos activa algun otro nodo, ya
         // cuenta como t+1.
     }
     return C;
 }
 
-// Ordena según el lindar del nodo
-vector<pair<double, int>> Ordenar(VNode &nodos)
-{
-    vector<pair<double, int>> pares;
-    for (int i = 0; i < nodos.size(); ++i)
-    {
-        pares.push_back({nodos[i].llindar, i});
-    }
-    sort(pares.rbegin(), pares.rend());
-    return pares;
-}
-
 // comprobar que todos los nodos estan activados
-bool check_solution(const Grafo &G, VB &activados, double ratio, VNode &nodos)
+bool check_solution(Grafo &G, VB &activados, double ratio)
 {
-    QueueInt Q;
-    Q.push(activados[0]);
     VB activados_aux = activados;
     int t = 0;
-    VI C = difusionLT(G, activados_aux, ratio, Q, &t, nodos);
+    Grafo G_aux = G;
+    QueueInt Q;
+    for (int i = 0; i < activados.size(); ++i)
+    {
+        if (activados[i])
+            Q.push(i);
+    }
+    VI C = difusionLT(G_aux, activados_aux, ratio, Q, &t);
     int nodes_activados = 0;
     for (auto i : activados_aux)
     {
         if (i)
             ++nodes_activados;
     }
-    return (nodes_activados == G.size());
+    return (nodes_activados == G.first.size());
 }
 
-VI greedy(const Grafo &G, double ratio, const VNode &nodos, const VPair &pares, int& t_optima, QueueInt& Q_inicial)
+void general_sol(Grafo &G, VB &activados, VI &sol_actual, double ratio)
 {
-    VI C;
-    int n = G.size();
-    int k_min = 1;
-    int k_max = n;
-    int k_optimo = -1;
-    int t;
-    while (k_min <= k_max) {
-        int k_mid = (k_min + k_max) / 2;
-        VB activados(n, false);
-        QueueInt Q;
-        for (int i = 0; i < k_mid; ++i) {
-            activados[pares[i].second] = true;
-            Q.push(pares[i].second);
+    bool ok = false;
+    VB activados_aux;
+    VI sol_actual_aux;
+    while (not ok) // generar solucin randoment que sea valido
+    {
+        activados_aux = activados;
+        sol_actual_aux = sol_actual;
+        int num_nodes = G.first.size();
+        for (int i = 0; i < num_nodes; i++)
+        {
+            if (rand() % 2 == 1)
+            {
+                activados_aux[i] = true;
+                sol_actual_aux.push_back(i);
+            }
         }
-        Q_inicial = Q; 
-        VNode aux = nodos;
-        t = 0;
-        C = difusionLT(G, activados, ratio, Q, &t, aux);
-        int tamano_C = C.size();
-        cout << k_mid << " " << tamano_C << endl; //Aqui esta el problema!!!!
-
-        if (tamano_C == n) { //Si el tamaño de C es todo el grafo, busca si hay un valor menor de k. Sino aumenta el valor de K.
-            k_optimo = k_mid;
-            k_max = k_mid - 1;
-        }
-        else k_min = k_mid + 1;
+        QueueInt punt_ini;
+        punt_ini.push(sol_actual_aux[0]);
+        if (check_solution(G, activados_aux, ratio))
+            ok = true;
     }
-    t_optima = t;
-    return C;
+    activados = activados_aux;
+    sol_actual = sol_actual_aux;
 }
 
-int heuristic_value(VI &sol_actual)
+double heuristic_value(Grafo& G, VI &sol_actual)
 {
-    return sol_actual.size();
+    int aristas = 0;
+    double value;      //valor heuristico
+
+    for(int i=0; i<sol_actual.size(); ++i){
+        aristas += G.first[i].size();
+    }
+
+    return (sol_actual.size() - double(aristas/m));
 }
 
-// Función para calcular el conjunto objetivo óptimo utilizando el algoritmo de greedy+Hill Climbing(metaheuristica)
-VI greedy_and_hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q, VNode &nodos, const VPair &pares)
+VI simulated_Annealing(Grafo &G, double ratio)
 {
-    int num_nodes = G.size();
+    int num_nodes = G.first.size();
     VI sol_actual;
     VI best_sol;
     VB best_activados;
-    VB activados_actual = activados;
-
-    int t_optima;
-    sol_actual = greedy(G, ratio, nodos, pares, t_optima, Q);
-    int best_score = heuristic_value(sol_actual);
+    VB activados_actual(num_nodes, false);
+    general_sol(G, activados_actual, sol_actual, ratio);
+    double best_score = heuristic_value(G, sol_actual);
     best_sol = sol_actual;
     best_activados = activados_actual;
 
@@ -204,66 +196,75 @@ VI greedy_and_hillClimbing(Grafo &G, VB &activados, double ratio, QueueInt &Q, V
         cout << i << " ";
     }
     cout << "}\n";
-
-    // Iteramos hasta que no podamos encontrar una solución mejor
-    bool improved = true;
-    while (improved)
+    double initial_temperature = 10000;
+    double cooling_rate = 0.5;
+    double temperature = initial_temperature;
+    while (temperature > 0.001)
     {
-        improved = false;
-
-        // Evaluamos todos los vecinos del conjunto actual
-        for (int i = 0; i < sol_actual.size() && sol_actual.size() > 1; i++)
+        for (int i = 0; i < 100; i++) // número de iteraciones por temperatura
         {
+            // Escoger un vecino aleatorio
+            int random_index = rand() % sol_actual.size();
 
             VI neighbor_sol = sol_actual;
             VB neighbor_activate = best_activados;
-            neighbor_activate[neighbor_sol[i]] = false;
-            neighbor_sol.erase(neighbor_sol.begin() + i);
-            if (check_solution(G, neighbor_activate, ratio, nodos))
+            neighbor_activate[neighbor_sol[random_index]] = false;
+            neighbor_sol.erase(neighbor_sol.begin() + random_index);
+
+            int t = 0;
+            if (check_solution(G, neighbor_activate, ratio))
             {
-                int neighbor_score = heuristic_value(neighbor_sol);
-                if (neighbor_score < best_score)
+                double neighbor_score = heuristic_value(G, neighbor_sol);
+
+                // Calcular la diferencia de energía (score) entre la solución actual y el vecino
+                int energy_diff = neighbor_score - best_score;
+
+                if (energy_diff < 0)
                 {
+                    // Si el vecino es mejor, actualizar la solución actual
                     best_score = neighbor_score;
                     best_sol = neighbor_sol;
                     best_activados = neighbor_activate;
-                    improved = true;
+                    sol_actual = neighbor_sol;
+                }
+                else if (exp(-energy_diff / temperature) > ((double)rand() / (double)RAND_MAX))
+                {
+                    // Si el vecino es peor, aceptarlo con una probabilidad que depende de la temperatura
+                    sol_actual = neighbor_sol;
                 }
             }
-
-            // Si encontramos un vecino mejor, actualizamos la solución actual
         }
 
-        // Actualizamos el conjunto actual al mejor vecino encontrado
-        if (improved)
-        {
-            cout << "Solution_improve: { ";
-            for (int i : best_sol)
-            {
-                cout << i << " ";
-            }
-            cout << "}\n";
-            sol_actual = best_sol;
-            best_activados = best_activados;
-        }
+        // Enfriar la temperatura
+        temperature *= cooling_rate;
     }
+
     return best_sol;
 }
 
-int main()
+int main(int argc, char **argv)
 {
-    double ratio;
-    QueueInt Q;
-    VB activados;
-    VNode nodos;
-    Grafo G = leerGrafo(&ratio, Q, activados, nodos);
-    VPair pares = Ordenar(nodos);
-
-    VI Solution = greedy_and_hillClimbing(G, activados, ratio, Q, nodos, pares);
-    cout << "Solution: { ";
-    for (int i : Solution)
+    srand(time(NULL));
+    if (argc != 2)
     {
-        cout << i << " ";
+        cout << "El uso del programa es: ./localSearchLT <fichero_grafo>" << endl;
+        exit(1);
     }
-    cout << "}\n";
+    else
+    {
+        double ratio;
+        QueueInt Q;
+        VB activados;
+        VNode nodos;
+        Grafo G = leerGrafo(&ratio, argv[1]);
+        cout << G.first.size() << endl;
+        auto start = std::chrono::steady_clock::now();
+        VI Solution = simulated_Annealing(G, ratio);
+        auto end = std::chrono::steady_clock::now();
+
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        cout << "Tamaño de solucion :" << Solution.size() << endl;
+        cout << endl;
+        std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
+    }
 }
