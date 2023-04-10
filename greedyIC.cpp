@@ -74,7 +74,6 @@ queueInt greedy(const Grafo& G, const VPair& nodosOrdenados, const double& prob,
     int n = G.size();
     for (int i = 0; i < n; ++i) {
         SS.push(nodosOrdenados[i].first);
-        cout << "Tam cola: " << SS.size() << endl;
         Solucion ans = difusionIC(G, SS, prob);
         int tam = ans.C.size();
         if (max >= tam) break;
