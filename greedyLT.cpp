@@ -1,198 +1,150 @@
-#include <iostream>
+#include "difusioLT.cpp"
 #include <algorithm>
-#include <vector>
-#include <fstream>
-#include <sstream>
-#include <queue>
+#include <set>
 #include <chrono>
 using namespace std;
 
-struct Node
-{
-    double llindar;
-    int influencia;
-};
+using VPair = vector<pair<int, Node>>;
 
-using VI = vector<int>;
-using Grafo = vector<VI>;
-using VNode = vector<Node>;
-using VB = vector<bool>;
-using QueueInt = queue<int>;
-using VPair = vector<pair<double, int>>;
+const bool cmp(pair<int, Node> p1, pair<int, Node> p2) {
+    return p1.second.llindar > p2.second.llindar;
+}
 
 // Función que se encarga de leer el grafo y la probabilidad.
-Grafo leerGrafo(double *ratio, VNode &nodos)
-{
-    // Fichero que contiene el grafo:
-    string nombreFichero = "grafo01LT.txt";
-    ifstream file(nombreFichero.c_str());
+Grafo leerGrafo(double* ratio, const char* nombreFichero) {
+    //Fichero que contiene el grafo:
+    ifstream file(nombreFichero);
     string line;
+    stringstream ss;
 
-    // n -> vértices, m -> aristas
+    //n -> vértices, m -> aristas
     int n, m;
+    string str;
     getline(file, line);
-    n = atoi(line.c_str());
+    ss = stringstream(line);
+    ss >> str; ss >> str;
+    ss >> n; ss >> m;
+
+    AdjList adj(n);
+    VNode nodos(n);
+    Grafo G = {adj, nodos};
+
+    //Probabilidad:
     getline(file, line);
-    m = atoi(line.c_str());
+    ss = stringstream(line);
+    ss >> str; ss >> (*ratio);
 
-    Grafo G(n);
-    nodos.resize(n);
-
-    // Probabilidad:
-    getline(file, line);
-    *ratio = atof(line.c_str());
-
-    // Leer aristas:
     int u, v;
-    while (m--)
-    {
+    //Leer aristas:
+    while (m--) {
         getline(file, line);
-        stringstream ss(line);
-        ss >> u;
-        ss >> v;
-        nodos[u].llindar += *ratio;
-        nodos[v].llindar += *ratio;
-        G[u].push_back(v);
-        G[v].push_back(u);
+        ss = stringstream(line);
+        ss >> str;
+        ss >> u; ss >> v;
+        --u; --v;
+
+        //Adyacencias:
+        G.first[u].push_back(v);
+        G.first[v].push_back(u);
+
+        //Umbral
+        G.second[u].llindar += *ratio;
+        G.second[v].llindar += *ratio;
+
+        //Influencia
+        G.second[u].influencia = 0;
+        G.second[v].influencia = 0;
     }
 
     file.close();
     return G;
-}
+}    
 
-// Función que visita cada nodo adyacente a u y los activa según si cumplen la condición del modelo de difusión LT.
-// Si activamos un nodo, lo encolamos para realizar el mismo proceso partiendo de él.
-void influenciarNodos(const Grafo &G, VB &activados, VI &C, double ratio, int u, int *t, VNode &nodos, QueueInt &Q)
-{
-    bool influenciado = false;
-    for (int v : G[u])
-    {
-        // Incrementamos en 1 la influencia de cada nodo vecino de u.
-        ++nodos[v].influencia;
-        if (!activados[v] && nodos[v].influencia >= nodos[v].llindar)
-        {
-            influenciado = true;
-            activados[v] = true;
-            Q.push(v);
-        }
+
+//Busca el nodo con mayor grado que esté disponible (que no haya sido activado).
+int buscar_nodo_mayor(const VPair& ord, const VB& disp) {
+    for (int i = 0; i < ord.size(); ++i) {
+        if (!disp[ord[i].first]) return ord[i].first;
     }
-    if (influenciado)
-        *t = *t + 1;
-}
-
-// La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según si cumplen la condición
-// del modelo LT.
-VI difusionLT(const Grafo &G, VB &activados, double ratio, QueueInt &Q, int *t, VNode &nodos)
-{
-    VI C;
-    while (not Q.empty())
-    {
-        int w = Q.front();
-        Q.pop();
-        C.push_back(w);
-        influenciarNodos(G, activados, C, ratio, w, t, nodos, Q);
-        // Sacar el conjunto de nodos activados a cada iteracion. Si alguno de estos nodos activa algun otro nodo, ya
-        // cuenta como t+1.
-    }
-    return C;
-}
-
-// Ordena según el lindar del nodo
-vector<pair<double, int>> Ordenar(VNode &nodos)
-{
-    vector<pair<double, int>> pares;
-    for (int i = 0; i < nodos.size(); ++i)
-    {
-        pares.push_back({nodos[i].llindar, i});
-    }
-    sort(pares.rbegin(), pares.rend());
-    return pares;
-}
-
-// Escoge el valor mínimo de K, que activa todo el grafo
-VI escogerK(const Grafo &G, double ratio, const VNode &nodos, const VPair &pares, int &t_optima, QueueInt &Q_inicial)
-{
-    VI C;
-    int n = G.size();
-    int k_min = 1;
-    int k_max = n;
-    int k_optimo = -1;
-    int t;
-    while (k_min <= k_max)
-    {
-        int k_mid = (k_min + k_max) / 2;
-        VB activados(n, false);
-        QueueInt Q;
-        for (int i = 0; i < k_mid; ++i)
-        {
-            activados[pares[i].second] = true;
-            Q.push(pares[i].second);
-        }
-        Q_inicial = Q;
-        VNode aux = nodos;
-        t = 0;
-        C = difusionLT(G, activados, ratio, Q, &t, aux);
-        int tamano_C = C.size();
-        cout << k_mid << " " << tamano_C << endl; // Aqui esta el problema!!!!
-
-        if (tamano_C == n)
-        { // Si el tamaño de C es todo el grafo, busca si hay un valor menor de k. Sino aumenta el valor de K.
-            k_optimo = k_mid;
-            k_max = k_mid - 1;
-        }
-        else
-            k_min = k_mid + 1;
-    }
-    t_optima = t;
-    return C;
+    return -1; //No se ha encontrado.
 }
 
 // Escoge los nodos activados en el instante t = 0
-VI greedy(const vector<pair<double, int>> &pares, int k)
-{
-    VI S;
-    for (int i = 0; i < k; ++i)
-    {
-        S.push_back(pares[i].second);
+pair<queueInt, Solucion> greedy(Grafo& G, const double& ratio) {
+    int n = G.first.size();
+
+
+    //Vamos a tener un vector "disponibles" para "eliminar" los nodos que ya hayan sido activados
+    //de la estructura de "ordenados". En "ordenados" vamos a tener los nodos ordenados decrecientemente
+    //por su umbral.
+    VB disponibles(n, false);
+    VPair ordenados(n);
+
+    //Introducir los nodos.
+    for (int i = 0; i < n; ++i) {
+        ordenados[i] = {i, G.second[i]};
     }
-    return S;
+
+    //Ordenar:
+    sort(ordenados.begin(), ordenados.end(), cmp);
+
+    //Coger el nodo con umbral más grande.
+    queueInt S;
+    S.push(ordenados[0].first);
+    Solucion sol;
+
+    bool found = false;
+    while (!found) { 
+
+        sol = difusionLT(G, S, ratio);
+    
+        //Quitar los nodos que ya hayan sido activados.
+        for (int v : sol.C) {
+            disponibles[v] = true;
+        }
+
+        //Hemos activado todos los nodos.
+        if (sol.C.size() == n) found = true;
+        else {
+            //Escoger el siguiente de mayor grado que NO esté activado. 
+            int nodo = buscar_nodo_mayor(ordenados, disponibles);
+            S.push(nodo);
+        }
+    }
+
+    return {S, sol};
 }
-
-int main()
+ 
+int main(int argc, char** argv)
 {
-    double ratio;
-    QueueInt Q;
-    VB activados;
-    VNode nodos;
-    int t_optima;
-    Grafo G = leerGrafo(&ratio, nodos);
-    auto start = std::chrono::steady_clock::now();
-    VPair pares = Ordenar(nodos);
-
-    VI C = escogerK(G, ratio, nodos, pares, t_optima, Q);
-
-    // Hacemos que el subconjunto S sea la cola Q.
-    int tam = Q.size();
-    cout << "Subconjunto inicial: {";
-    for (int i = 0; i <= tam - 2; ++i)
-    {
-        cout << Q.front() << ", ";
-        Q.pop();
+    if (argc != 2) {
+        cout << "El uso del programa es: ./greedyLT <fichero_grafo>" << endl;
+        exit(1);
     }
-    cout << Q.front() << "}" << endl;
-    Q.pop();
+    else {
+        double ratio;
+        VB activados;
+        Grafo G = leerGrafo(&ratio, argv[1]);
 
-    auto end = std::chrono::steady_clock::now();
-    std::chrono::duration<double> elapsed_seconds = end - start;
-    // Mostrar respuesta:
-    int size = C.size();
-    cout << "Tamaño del conjunto C: " << size << endl;
-    cout << "Número de pasos: " << t_optima << endl;
-    cout << "Nodos activados: {";
-    for (int i = 0; i <= size - 2; ++i)
-        cout << C[i] << ", ";
-    cout << C[size - 1] << "}" << endl;
+        //A partir de aquí contamos el tiempo.
+        auto start = std::chrono::steady_clock::now();
 
-    cout << endl;
-    std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
+        auto Greedy = greedy(G, ratio);
+    
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        //Aquí se acaba de cronometrar el tiempo.
+
+        queueInt S = Greedy.first;
+        Solucion sol = Greedy.second;
+
+        // Mostrar respuesta:
+        int tamS = S.size();
+        int tamC = sol.C.size(); 
+        cout << "Tamaño del conjunto S: " << tamS << endl;
+        cout << "Tamaño del conjunto C: " << tamC << endl;
+        cout << "Número de pasos: " << sol.t << endl;
+
+        std::cout << "El tiempo de ejecución fue de " << elapsed_seconds.count() << " segundos." << std::endl;
+    }
 }

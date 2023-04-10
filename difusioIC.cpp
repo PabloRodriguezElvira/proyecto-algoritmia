@@ -73,21 +73,25 @@ void influenciarNodos(const Grafo& G, VB& activados, Solucion& sol, const double
 }
 
 //La función se encarga de para cada vértice activado inicialmente, ir activando sus vecinos según la probabilidad prob.
-Solucion difusionIC(const Grafo& G, queueInt& S, const double& prob) {
+Solucion difusionIC(const Grafo& G, const queueInt& S, const double& prob) {
+
+    //Copia de la cola:
+    queueInt Saux = S;
+
     Solucion sol; 
     sol.t = 0;
     int n = G.size();
     VB activados(n, false);
 
     //Mientras la cola no esté vacía, hacemos un paso de difusión desde el nodo que esté en el front de la cola.
-    while (not S.empty()) {
-        int w = S.front(); S.pop();
+    while (not Saux.empty()) {
+        int w = Saux.front(); Saux.pop();
 
         activados[w] = true; //Marcamos nodo como activado.
         sol.C.push_back(w); //Añadimos el nodo al conjunto solución de nodos activados.
 
         //Realizamos la difusión:
-        influenciarNodos(G, activados, sol, prob, w, S);
+        influenciarNodos(G, activados, sol, prob, w, Saux);
     } 
 
     return sol;
