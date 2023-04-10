@@ -191,7 +191,7 @@ VI simulated_Annealing(Grafo &G, double ratio)
     double initial_temperature = 10000;
     double cooling_rate = 0.5;
     double temperature = initial_temperature;
-    while (temperature > 0.001)
+    while (temperature > 1)
     {
         for (int i = 0; i < 100; i++) // número de iteraciones por temperatura
         {
